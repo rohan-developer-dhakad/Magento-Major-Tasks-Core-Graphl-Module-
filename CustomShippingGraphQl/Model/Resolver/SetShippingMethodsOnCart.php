@@ -1,0 +1,84 @@
+<?php
+/**
+ * Copyright © Magento, Inc. All rights reserved.
+ * See COPYING.txt for license details.
+ */
+declare(strict_types=1);
+
+namespace Task\CustomShippingGraphQl\Model\Resolver;
+
+use Magento\Framework\GraphQl\Exception\GraphQlInputException;
+use Magento\Framework\GraphQl\Query\ResolverInterface;
+use Magento\Framework\GraphQl\Config\Element\Field;
+use Magento\Framework\GraphQl\Schema\Type\ResolveInfo;
+use Magento\QuoteGraphQl\Model\Cart\GetCartForUser;
+use Magento\QuoteGraphQl\Model\Cart\SetShippingMethodsOnCartInterface;
+use Magento\QuoteGraphQl\Model\Cart\CheckCartCheckoutAllowance;
+
+/**
+ * Mutation resolver for setting shipping methods for shopping cart
+ */
+class SetShippingMethodsOnCart implements ResolverInterface
+{
+    /**
+     * @var GetCartForUser
+     */
+    private $getCartForUser;
+
+    /**
+     * @var SetShippingMethodsOnCartInterface
+     */
+    private $setShippingMethodsOnCart;
+
+    /**
+     * @var CheckCartCheckoutAllowance
+     */
+    private $checkCartCheckoutAllowance;
+
+    /**
+     * @param GetCartForUser $getCartForUser
+     * @param SetShippingMethodsOnCartInterface $setShippingMethodsOnCart
+     * @param CheckCartCheckoutAllowance $checkCartCheckoutAllowance
+     */
+    public function __construct(
+        GetCartForUser $getCartForUser,
+        SetShippingMethodsOnCartInterface $setShippingMethodsOnCart,
+        CheckCartCheckoutAllowance $checkCartCheckoutAllowance
+    ) {
+        $this->getCartForUser = $getCartForUser;
+        $this->setShippingMethodsOnCart = $setShippingMethodsOnCart;
+        $this->checkCartCheckoutAllowance = $checkCartCheckoutAllowance;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function resolve(Field $field, $context, ResolveInfo $info, array $value = null, array $args = null)
+    {
+        $writer = new \Zend_Log_Writer_Stream(BP . '/var/log/temp.log');
+        $logger = new \Zend_Log();
+        $logger->addWriter($writer);
+        if (empty($args['input']['cart_id'])) {
+            throw new GraphQlInputException(__('Required parameter "cart_id" is missing'));
+        }
+        $maskedCartId = $args['input']['cart_id'];
+
+        if (empty($args['input']['shipping_methods'])) {
+            throw new GraphQlInputException(__('Required parameter "shipping_methods" is missing'));
+        }
+        $shippingMethods = $args['input']['shipping_methods'];
+//        $logger->info(var_dump($shippingMethods));
+
+        $storeId = (int)$context->getExtensionAttributes()->getStore()->getId();
+        $cart = $this->getCartForUser->execute($maskedCartId, $context->getUserId(), $storeId);
+        $this->checkCartCheckoutAllowance->execute($cart);
+        $this->setShippingMethodsOnCart->execute($context, $cart, $shippingMethods);
+        $cart = $this->getCartForUser->execute($maskedCartId, $context->getUserId(), $storeId);
+
+        return [
+            'cart' => [
+                'model' => $cart,
+            ],
+        ];
+    }
+}

@@ -1,0 +1,3 @@
+interface ProductInterface @typeResolver(class: "Magento\\CatalogGraphQl\\Model\\ProductInterfaceTypeResolverComposite") @doc(description: "The ProductInterface contains attributes that are common to all types of products. Note that descriptions may not be available for custom and EAV attributes.") {
+    product_unit: String @doc(description: "Product Unit of measurement") @resolver(class: "Task\\AddProductAttributeGraphQl\\Model\\Resolver\\Product\\AddCustomAttribute")
+}
